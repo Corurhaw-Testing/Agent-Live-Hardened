@@ -1,5 +1,9 @@
 # Persistent identity and host integration
 
+For the experimental revision-checked multi-writer store, bounded imports, and
+optional signed import workflow, see [hardening.md](hardening.md). The simple
+save/reload example below remains a low-level single-writer interface.
+
 The durable identity is the record's UUID and associated state. A process label
 such as `/root` identifies a runtime role and is not a durable agent UUID.
 
