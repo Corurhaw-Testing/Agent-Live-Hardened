@@ -52,6 +52,15 @@ class CommandLineTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("error:", result.stderr)
 
+    def test_explicit_empty_verification_key_fails_closed(self):
+        result = self.run_cli("validate", ROOT / "examples/agent-identity.example.json", "--verify-key", "")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("host-pinned", result.stderr)
+
+    def test_unsigned_record_cannot_pass_required_signature(self):
+        result = self.run_cli("validate", ROOT / "examples/agent-identity.example.json", "--verify-key", "ed25519:" + "00" * 32)
+        self.assertEqual(result.returncode, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,16 @@
 # Agent-Live
+
+## Experimental hardening development line (0.2.0)
+
+This separate development line adds bounded JSON imports, host-authorized edit
+operations, revision-checked SQLite persistence, audit history, and optional
+Ed25519 signature verification. See [Hardening and integration](docs/hardening.md)
+for usage, compatibility, verification, and security boundaries. The identity
+schema and v1 state hashes remain compatible; oversized records are now rejected.
+
+For the complete test suite, install `python -m pip install '.[signing]'` before
+running `python -m unittest -v`.
+
 Deploy to GitHub to implement OpenAI Codex implementing experimental persistence to an AI agent.
 
 ## Persistent-Agent implementation

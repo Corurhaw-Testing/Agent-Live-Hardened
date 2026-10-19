@@ -1,5 +1,13 @@
 # Security Policy
 
+## Hardened host integration
+
+See [docs/hardening.md](docs/hardening.md) for resource limits, transactional
+storage, host-supplied authorization, authenticated imports, and remaining trust
+boundaries. Optional Ed25519 verification requires the `signing` installation
+extra and an independently pinned public key. Never derive authorization or key
+trust from imported record fields alone.
+
 ## Private keys
 
 Do **not** commit private keys, seed phrases, recovery material, Keybase private-directory contents, hardware-token secrets, or decrypted keystore exports.
@@ -26,3 +34,9 @@ Recommended flow:
 3. Sign the hash (or canonical representation) using the externally protected Ed25519 private key.
 4. Store the public key, fingerprint, signature, signing time, and canonicalization/version metadata in the identity record.
 5. Verify before accepting migrations, recoveries, or imported autobiographical state as cryptographically continuous.
+
+The 0.2.0 verifier supports an explicit domain-separated `ed25519-v1:` signature
+encoding over `signature_payload(record)`. Use that payload for new signatures;
+the older generic recommendation to sign a hash or canonical bytes does not
+identify a compatible signature format. `signed_at` is not authenticated by the
+legacy canonical encoding. Keep private keys external.

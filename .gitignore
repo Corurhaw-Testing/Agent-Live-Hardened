@@ -10,3 +10,7 @@ identity.json
 state/
 *.pem
 *.key
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*

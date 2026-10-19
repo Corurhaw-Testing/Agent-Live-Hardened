@@ -4,12 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "persistent-agent"
-version = "0.1.2"
+version = "0.2.0"
 description = "Reference implementation for persistent AI-agent identity records"
 requires-python = ">=3.10"
 readme = "README.md"
 license = { text = "UNLICENSED" }
 dependencies = ["jsonschema>=4.18,<5", "rfc3339-validator>=0.1.4,<1"]
+
+[project.optional-dependencies]
+signing = ["cryptography>=44,<52"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
