@@ -16,12 +16,16 @@ def main(argv: list[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     validate = commands.add_parser("validate", help="validate a record and print its hash")
     validate.add_argument("path", type=Path)
+    validate.add_argument("--verify-key", help="host-pinned ed25519:hex public key; require valid signature")
     snapshot = commands.add_parser("snapshot", help="save a validated record with its hash")
     snapshot.add_argument("path", type=Path)
     snapshot.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
         record = IdentityRecord.load(args.path)
+        if args.command == "validate" and args.verify_key is not None:
+            from .signing import verify_signature
+            verify_signature(record, expected_public_key=args.verify_key)
         if args.command == "snapshot":
             record = record.with_state_hash()
             record.dump(args.output)

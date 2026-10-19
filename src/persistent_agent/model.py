@@ -17,10 +17,8 @@ from typing import Any, Mapping
 from uuid import UUID
 
 from jsonschema import Draft202012Validator, FormatChecker
-
-
-class IdentityValidationError(ValueError):
-    """Raised when a record violates the schema or identity invariants."""
+from .errors import IdentityValidationError
+from .limits import MAX_BYTES, check_json_nesting, check_structure
 
 
 @lru_cache(maxsize=1)
@@ -37,15 +35,19 @@ def _canonical_payload(data: Mapping[str, Any]) -> bytes:
 
     This project-specific encoding is not RFC 8785 canonical JSON.
     """
+    check_structure(data)
     obj = deepcopy(dict(data))
     integrity = obj["agent_identity"]["integrity"]
     for field in ("state_hash", "signature", "signed_at"):
         integrity[field] = None
     try:
-        return json.dumps(
+        encoded = json.dumps(
             obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
             allow_nan=False,
         ).encode("utf-8")
+        if len(encoded) > MAX_BYTES:
+            raise IdentityValidationError("JSON byte limit exceeded")
+        return encoded
     except (TypeError, ValueError, UnicodeError) as exc:
         raise IdentityValidationError("record must contain finite UTF-8 JSON values") from exc
 
@@ -58,7 +60,7 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result = {}
     for key, value in pairs:
         if key in result:
-            raise IdentityValidationError(f"duplicate JSON key: {key}")
+            raise IdentityValidationError("duplicate JSON key")
         result[key] = value
     return result
 
@@ -75,23 +77,37 @@ class IdentityRecord:
 
     @classmethod
     def load(cls, path: str | Path) -> "IdentityRecord":
+        with Path(path).open("rb") as f:
+            raw = f.read(MAX_BYTES + 1)
+        return cls.from_bytes(raw)
+
+    @classmethod
+    def from_bytes(cls, raw: bytes) -> "IdentityRecord":
+        if len(raw) > MAX_BYTES:
+            raise IdentityValidationError("JSON byte limit exceeded")
         try:
-            with Path(path).open("r", encoding="utf-8") as f:
-                data = json.load(
-                    f, object_pairs_hook=_unique_object, parse_constant=_reject_constant,
-                )
-        except (json.JSONDecodeError, UnicodeError) as exc:
-            raise IdentityValidationError(f"invalid JSON: {exc}") from exc
+            text = raw.decode("utf-8")
+            check_json_nesting(text)
+            data = json.loads(text, object_pairs_hook=_unique_object, parse_constant=_reject_constant)
+        except (ValueError, UnicodeError, RecursionError) as exc:
+            if isinstance(exc, IdentityValidationError):
+                raise
+            raise IdentityValidationError("invalid UTF-8 JSON") from exc
         record = cls(data)
         record.validate_core_invariants()
         return record
 
     def validate_core_invariants(self) -> None:
         """Enforce the complete schema, lineage rules and any stored hash."""
+        check_structure(self.data)
         error = next(_validator().iter_errors(self.data), None)
         if error is not None:
             location = ".".join(str(part) for part in error.absolute_path) or "$"
-            raise IdentityValidationError(f"{location}: {error.message}")
+            detail = f"schema {error.validator} constraint failed"
+            if error.validator == "required" and isinstance(error.instance, dict):
+                missing = [key for key in error.validator_value if key not in error.instance]
+                detail += ": missing " + ", ".join(missing)
+            raise IdentityValidationError(f"{location}: {detail}")
 
         identity = self.data["agent_identity"]
         lineage = identity["lineage"]
@@ -128,6 +144,7 @@ class IdentityRecord:
         This explicitly permits a new snapshot; it does not authorize a
         migration, verify a signature, or enforce an append-only history.
         """
+        check_structure(self.data)
         obj = deepcopy(self.data)
         if not isinstance(obj, dict) or not isinstance(obj.get("agent_identity"), dict):
             self.validate_core_invariants()
@@ -146,6 +163,8 @@ class IdentityRecord:
         """Validate before atomically replacing a local snapshot."""
         self.validate_core_invariants()
         encoded = json.dumps(self.data, indent=2, ensure_ascii=False, allow_nan=False) + "\n"
+        if len(encoded.encode("utf-8")) > MAX_BYTES:
+            raise IdentityValidationError("JSON byte limit exceeded")
         target = Path(path)
         temporary = None
         try:
